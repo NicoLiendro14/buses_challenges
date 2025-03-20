@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Enum as SQLEnum, Index
 from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
@@ -30,10 +30,10 @@ class Bus(Base):
     model = Column(String(50))
     body = Column(String(25))
     chassis = Column(String(25))
-    engine = Column(String(300))
-    transmission = Column(String(300))
+    engine = Column(String(60))
+    transmission = Column(String(60))
     mileage = Column(String(100))
-    passengers = Column(String(300))
+    passengers = Column(String(60))
     wheelchair = Column(String(60))
     color = Column(String(60))
     interior_color = Column(String(60))
@@ -56,13 +56,24 @@ class Bus(Base):
     state_bus_standard = Column(String(25))
     airconditioning = Column(SQLEnum(AirConditioningType), default=AirConditioningType.OTHER)
     location = Column(String(30))
-    brake = Column(String(300))
+    brake = Column(String(30))
     contact_email = Column(String(100))
     contact_phone = Column(String(100))
     us_region = Column(SQLEnum(USRegion), default=USRegion.OTHER)
     description = Column(Text)
     score = Column(Boolean, default=False)
     category_id = Column(Integer, default=0)
+
+
+    __table_args__ = (
+        Index('idx_bus_year', 'year'),
+        Index('idx_bus_make', 'make'),
+        Index('idx_bus_model', 'model'),
+        Index('idx_bus_price', 'price'),
+        Index('idx_bus_mileage', 'mileage'),
+        Index('idx_bus_location', 'location'),
+        Index('idx_bus_us_region', 'us_region'),
+    )
 
     overview = relationship("BusOverview", back_populates="bus", uselist=False)
     images = relationship("BusImage", back_populates="bus", cascade="all, delete-orphan")
