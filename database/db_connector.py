@@ -37,6 +37,11 @@ class DatabaseConnector:
         except Exception as e:
             raise Exception(f"Failed to initialize database connection: {str(e)}")
 
+    @property
+    def session(self):
+        """Get a new session."""
+        return self.Session()
+
     @contextmanager
     def get_session(self):
         """Provide a transactional scope around a series of operations."""
