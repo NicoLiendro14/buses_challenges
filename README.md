@@ -55,6 +55,7 @@ buses_challenge/
 │   ├── ross_scraper.py
 │   └── pdf_mixin.py      # PDF processing utilities
 ├── scripts/              # Utility scripts
+│   ├── run_scrapers.py   # Script to run all scrapers and save JSON output
 │   └── verify_data.py    # Data verification script
 ├── tests/                # Test suite
 ├── utils/                # Shared utilities
@@ -104,6 +105,19 @@ DB_NAME=school_buses
 ```
 
 ## Usage
+
+### Running All Scrapers At Once
+To run all three scrapers at once and save their output as JSON files:
+
+```bash
+python scripts/run_scrapers.py
+```
+
+This will:
+- Run all three scrapers (Daimler, Micro Bird, Ross Bus)
+- Save the results in a `scraped_data` directory with timestamped JSON files
+- Generate a statistics summary file with counts and status for each scraper
+- Log the execution details to `scrapers_execution.log`
 
 ### Running Individual Scrapers
 Run each scraper individually to test or to scrape data from a specific source:
