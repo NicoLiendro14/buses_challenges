@@ -5,7 +5,13 @@ import requests
 from urllib.parse import urljoin
 import time
 import re
-from .base_scraper import BaseScraper
+import sys
+import os
+
+# Add the project root directory to sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from scrapers.base_scraper import BaseScraper
 
 logger = logging.getLogger(__name__)
 
@@ -177,22 +183,27 @@ class RossScraper(BaseScraper):
             
             soup = BeautifulSoup(response.text, 'html.parser')
             
+            # Extract title
             title = soup.select_one('.BlueTitle')
             title = title.text.strip() if title else ""
             
+            # Extract description
             description = soup.select_one('.Describe')
             description = description.text.strip() if description else ""
             
+            # Extract images
             images = []
-            slider = soup.select_one('#slider .slides')
-            if slider:
-                for img in slider.select('img'):
+            img_wrappers = soup.select('.ImgWrapper.BusImgBal img')
+            if img_wrappers:
+                for i, img in enumerate(img_wrappers):
+                    image_url = urljoin(self.BASE_URL, img['src'])
                     images.append({
-                        'url': urljoin(self.BASE_URL, img['src']),
-                        'name': f"image_{len(images)}",
+                        'url': image_url,
+                        'name': f"image_{i}",
                         'description': ""
                     })
             
+            # Extract specifications
             specs = {}
             specs_section = soup.select_one('.Extra_Info_Wrap ul')
             if specs_section:
@@ -201,6 +212,7 @@ class RossScraper(BaseScraper):
                         key, value = item.text.split(':', 1)
                         specs[key.strip()] = value.strip()
             
+            # Extract detailed specifications
             details = {}
             details_section = soup.select_one('.DeepDetails ul')
             if details_section:
@@ -210,29 +222,45 @@ class RossScraper(BaseScraper):
                     if key and value:
                         details[key.text.strip()] = value.text.strip()
             
+            # Extract make and model from description
+            make = "Blue Bird" if "Blue Bird" in description else None
+            model = "Vision" if "Vision" in title else None
+            
+            # Extract wheelchair accessibility
+            wheelchair = specs.get('Lift Equipped', '').lower() == 'yes'
+            
+            # Extract passengers
+            passengers = specs.get('Seating Capacity', 'N/A')
+            
+            # Extract engine and transmission
+            engine = details.get('Engine', 'N/A')
+            transmission = details.get('Transmission', 'N/A')
+            
+            # Extract GVWR
+            gvwr = details.get('GVWR', 'N/A')
+            
             data = {
                 'title': title,
+                'make': make,
+                'model': model,
+                'year': None,  # Not available in the source
+                'mileage': specs.get('Miles', 'N/A'),
+                'passengers': passengers,
+                'wheelchair': wheelchair,
+                'engine': engine,
+                'transmission': transmission,
+                'gvwr': gvwr,
+                'price': None,  # Not available in the source
+                'vin': None,  # Not available in the source
+                'location': None,  # Not available in the source
+                'region': None,  # Not available in the source
                 'description': description,
+                'specifications': details,
                 'images': images,
-                'specs': specs,
-                'details': details,
                 'source': 'Ross Bus',
                 'source_url': url,
                 'scraped': True
             }
-            
-            if 'Capacity' in details:
-                data['passengers'] = details['Capacity']
-            if 'Engine' in details:
-                data['engine'] = details['Engine']
-            if 'Transmission' in details:
-                data['transmission'] = details['Transmission']
-            if 'Brakes' in details:
-                data['brake'] = details['Brakes']
-            if 'GVWR' in details:
-                data['gvwr'] = details['GVWR']
-            if 'Overall Height' in details:
-                data['dimensions'] = details['Overall Height']
             
             return data
             
@@ -274,4 +302,79 @@ class RossScraper(BaseScraper):
             
         except Exception as e:
             logger.error(f"Error in main scraping process: {str(e)}")
-            return [] 
+            return []
+
+if __name__ == "__main__":
+    from database import db, Bus, BusOverview, BusImage
+
+    def test_ross_scraper():
+        # Configure logging
+        logging.basicConfig(level=logging.INFO)
+        logger = logging.getLogger("RossTest")
+        
+        # Initialize the scraper
+        scraper = RossScraper()
+        
+        # Get all listing URLs
+        listing_urls = scraper.get_listing_urls()
+        total_listings = len(listing_urls)
+        logger.info(f"Found {total_listings} listings to process")
+        # assert total_listings > 30, f"Expected at least 30 listings, found {total_listings}"
+        
+        # Process all listings
+        successful = 0
+        failed = 0
+        results = []
+        
+        required_fields = [
+            'title', 'description', 'images', 'source', 'source_url'
+        ]
+
+        for i, url in enumerate(listing_urls, 1):
+            logger.info(f"Processing listing {i}/{total_listings} (URL: {url})")
+            
+            try:
+                listing = scraper.parse_listing(url)
+                if not listing:
+                    logger.error(f"Failed to parse listing {url}")
+                    failed += 1
+                    continue
+
+                # Verify required fields
+                missing_fields = [field for field in required_fields if field not in listing]
+                if missing_fields:
+                    logger.warning(f"Listing {url} missing fields: {missing_fields}")
+                
+                # Verify images
+                if not listing.get('images'):
+                    logger.warning(f"Listing {url} has no images")
+                
+                results.append(listing)
+                successful += 1
+                
+                # Add a small delay between requests
+                time.sleep(1)
+                
+            except Exception as e:
+                logger.error(f"Error processing listing {url}: {str(e)}")
+                failed += 1
+
+        # Print summary
+        logger.info("\nScraping Summary:")
+        logger.info(f"Total listings found: {total_listings}")
+        logger.info(f"Successfully processed: {successful}")
+        logger.info(f"Failed to process: {failed}")
+        logger.info(f"Success rate: {(successful/total_listings)*100:.2f}%")
+
+        # Print sample data from first successful listing
+        if results:
+            logger.info("\nSample data from first successful listing:")
+            for key, value in results[0].items():
+                if key != 'images':
+                    logger.info(f"{key}: {value}")
+            logger.info(f"Number of images: {len(results[0].get('images', []))}")
+            
+        return results
+
+    # Run the test
+    results = test_ross_scraper() 
